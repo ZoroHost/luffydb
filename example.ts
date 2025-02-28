@@ -7,7 +7,11 @@ async function main(){
 
     let qt = await client.query("stress_test");
 
+    console.log(await client.listTables())
+
     console.log(qt);
+
+    client.cleanBackup("stress_test");
 
     // for(const q of qt)  await client.delete("stress_test", q['id'])
     // client.insert("stress_test", {

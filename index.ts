@@ -9,6 +9,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 const { encode, decode } = msgpack();
 
+const VERSION_CONST = "2025.1";
+
 // Parse CLI flags
 const argv = yargs(hideBin(process.argv))
   .usage("LuffyDB Database made with Niku")
@@ -112,6 +114,23 @@ async function initTable(tableName: string): Promise<{ colFile: string; rowsFile
   }
 
   return { colFile, rowsFile };
+}
+
+// Fetch the Columns
+async function listTables() {
+  const tableDir = path.join(getDbFolder());
+
+  let dirTable = await Promise.all(
+    (await fs.readdir(tableDir)).map(async (r) => {
+      let lsStat = await fs.lstat(path.join(tableDir, r));
+
+      if (lsStat.isDirectory()) {
+        return r;
+      }
+    })
+  );
+  dirTable = dirTable.filter((r) => r !== undefined);
+  return dirTable;
 }
 
 // Create a backup for a given file (if backups are enabled)
@@ -293,18 +312,51 @@ if(AUTH_TOKEN == undefined){
 }
 
 app.use((req ,res, next) => {
+  if(VERSION_CONST !== req.headers.luffyclientv) {
+    res.status(400).json({
+      'message': "Client Version Mismatch"
+    })
+    return;
+  }
+
   if(AUTH_TOKEN == undefined) {
     next();
     return;
   }
+
   if(req.headers.authorization == AUTH_TOKEN){
     next();
     return;
   }
   logVerbose(`Attempt to use Database without Authuntication with Auth used!`);
-  res.status(400).json({
+  res.status(401).json({
     'message': "Authorization failed!"
   })
+});
+
+app.post('/table/list', async(req, res) => {
+  try{
+    res.send({ tables: await listTables() })
+  }catch (error: any){
+    logVerbose(`Error listing tables: ${error}`)
+  }
+})
+
+app.post('/table/:name/clear-backup', async (req, res) => {
+  try {
+    const tableName = req.params.name;
+    
+    let files = (await fs.readdir(path.join(getDbFolder(), tableName))).filter((e) => e.endsWith(".bak"));
+
+    await Promise.all(files.map((e) => fs.unlink(path.join(getDbFolder(), tableName, e))));
+
+    // Clean it, Nika
+    logVerbose(`Cleaned up Backup files for "${req.params.name}"`);
+    res.send({ message: `Backup files for table "${tableName}" cleared` });
+  } catch (error: any) {
+    logVerbose(`Error clearing backups for "${req.params.name}": ${error.message}`);
+    res.status(500).send({ error: error.message });
+  }
 });
 
 app.post('/table/:name/columns', async (req, res) => {

@@ -1,15 +1,19 @@
-# luffydb
+# LuffyDB - A Database No one asked for.
 
-To install dependencies:
+> Experimental Database Written with Bun.sh (JavaScript)
 
-```bash
-bun install
-```
+## FAQ
+### Why the name Luffy?
+Because this database is currently an idiot.
+### How to use it?
+Just check `example.ts` and to install, just download the executable from Releases and run `install.sh`. I'm too lazy to write a whole frickin documentation.
+### Is it better than MySQL/MongoDB?
+No, Luffy is dumber and more useless than them. It does not even have a full-fledge backup/restore system.
 
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.2.2. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+# Features
+- [x] Create Tables
+- [ ] Backup
+- [x] Edit, Delete, Add items
+- [x] Small Backup Files
+- [ ] Web Management
+- [ ] .. What more? i don't remember?  
