@@ -1,0 +1,23 @@
+{
+  "name": "luffydb",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@types/express": "^5.0.0",
+    "@types/msgpack5": "^3.4.6",
+    "@types/uuid": "^10.0.0",
+    "@types/yargs": "^17.0.33",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "lru-cache": "^11.0.2",
+    "msgpack5": "^6.0.2",
+    "uuid": "^11.1.0",
+    "yargs": "^17.7.2"
+  }
+}
