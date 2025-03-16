@@ -71,6 +71,17 @@ export class LuffyDBClient {
     return data.tables;
   }
 
+  async flush(tableName: string): Promise<void> {
+    const url = `${this.baseUrl}/table/${tableName}/clear-cache`;
+    const data = await this.request(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'authorization': this.authKey },
+    });
+    if (data === null) {
+      //this.errorLog(`Failed to clean table data`);
+    }
+  }
+
   async cleanBackup(tableName: string): Promise<void> {
     const url = `${this.baseUrl}/table/${tableName}/clear-backup`;
     const data = await this.request(url, {

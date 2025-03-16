@@ -82,7 +82,7 @@ function logVerbose(message: string): void {
       .padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now
       .getSeconds()
       .toString()
-      .padStart(2, '0')}] : ${message}`;
+      .padStart(2, '0')}] (LUFFY) : ${message}`;
     console.log(formatted);
   }
 }
@@ -174,6 +174,7 @@ async function getColumns(tableName: string): Promise<string[]> {
 }
 
 // Insert a row into a table using UUID for the row ID
+// Example: Clear cache in insertRow instead of setting it to filtered data
 async function insertRow(tableName: string, row: Record<string, any>): Promise<string> {
   const { rowsFile } = await initTable(tableName);
   await createBackup(rowsFile);
@@ -186,7 +187,9 @@ async function insertRow(tableName: string, row: Record<string, any>): Promise<s
   const data = decode(fileBuffer) as { rows: any[] };
   data.rows.push(newRow);
   await fs.writeFile(rowsFile, encode(data));
-  cache.set(`${tableName}:rows`, data.rows);
+  
+  // Invalidate the cache instead of overwriting with current data
+  cache.delete(`${tableName}:rows`);
   logVerbose(`Inserted row into table "${tableName}": ${JSON.stringify(newRow)}`);
 
   // Verify that the row can be fetched
@@ -196,6 +199,7 @@ async function insertRow(tableName: string, row: Record<string, any>): Promise<s
   }
   return rowId;
 }
+
 
 // Update an existing row in a table
 async function updateRow(tableName: string, rowId: string, updates: Record<string, any>): Promise<void> {
@@ -232,6 +236,27 @@ async function deleteRow(tableName: string, rowId: string): Promise<void> {
   logVerbose(`Deleted row ${rowId} from table "${tableName}"`);
 }
 
+async function refreshCache(tableName: string): Promise<void> {
+  // Refresh rows cache
+  const rowsCacheKey = `${tableName}:rows`;
+  cache.delete(rowsCacheKey);
+  const { rowsFile } = await initTable(tableName);
+  const fileBuffer = await fs.readFile(rowsFile);
+  const data = decode(fileBuffer) as { rows: any[] };
+  cache.set(rowsCacheKey, data.rows);
+
+  // Refresh columns cache
+  const colsCacheKey = `${tableName}:cols`;
+  cache.delete(colsCacheKey);
+  const { colFile } = await initTable(tableName);
+  const colBuffer = await fs.readFile(colFile);
+  const { columns } = decode(colBuffer) as { columns: string[] };
+  cache.set(colsCacheKey, columns);
+
+  logVerbose(`Cache refreshed for table "${tableName}"`);
+}
+
+
 // Retrieve rows with optional query, limit, and 'like' filters
 async function getRows(
   tableName: string,
@@ -239,8 +264,10 @@ async function getRows(
   limit?: number,
   like?: Record<string, string>
 ): Promise<any[]> {
+  const isUnfiltered = !Object.keys(query).length && !limit && !like;
   const cacheKey = `${tableName}:rows`;
-  if (!Object.keys(query).length && !limit && !like) {
+  
+  if (isUnfiltered) {
     const cachedRows = cache.get(cacheKey);
     if (cachedRows) return cachedRows;
   }
@@ -266,10 +293,13 @@ async function getRows(
     filteredRows = filteredRows.slice(0, limit);
   }
 
-  cache.set(cacheKey, filteredRows);
+  if (isUnfiltered) {
+    cache.set(cacheKey, filteredRows);
+  }
   logVerbose(`Retrieved ${filteredRows.length} rows from table "${tableName}"`);
   return filteredRows;
 }
+
 
 // Log a summary of the database: total number of tables and rows
 async function logDbSummary(): Promise<void> {
@@ -342,17 +372,31 @@ app.post('/table/list', async(req, res) => {
   }
 })
 
+app.post("/table/:name/clear-cache", async (req, res) => {
+  try{
+    await refreshCache(req.params.name);
+
+    logVerbose(`Cleaned up Cache  for "${req.params.name}"`);
+    res.send({ message: `Cache for table "${req.params.name}" cleared` });
+  }catch(error: any){
+    logVerbose(`Error clearing backups for "${req.params.name}": ${error.message}`);
+    res.status(500).send({ error: error.message });
+  }
+})
+
 app.post('/table/:name/clear-backup', async (req, res) => {
   try {
-    const tableName = req.params.name;
+    try{
+      const tableName = req.params.name;
     
-    let files = (await fs.readdir(path.join(getDbFolder(), tableName))).filter((e) => e.endsWith(".bak"));
+      let files = (await fs.readdir(path.join(getDbFolder(), tableName))).filter((e) => e.endsWith(".bak"));
 
-    await Promise.all(files.map((e) => fs.unlink(path.join(getDbFolder(), tableName, e))));
+      await Promise.all(files.map((e) => fs.unlink(path.join(getDbFolder(), tableName, e))));
 
-    // Clean it, Nika
-    logVerbose(`Cleaned up Backup files for "${req.params.name}"`);
-    res.send({ message: `Backup files for table "${tableName}" cleared` });
+      // Clean it, Nika
+      logVerbose(`Cleaned up Backup files for "${req.params.name}"`);
+      res.send({ message: `Backup files for table "${tableName}" cleared` });
+    }catch(error) {}
   } catch (error: any) {
     logVerbose(`Error clearing backups for "${req.params.name}": ${error.message}`);
     res.status(500).send({ error: error.message });
